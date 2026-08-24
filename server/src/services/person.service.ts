@@ -44,6 +44,7 @@ import { getDimensions } from 'src/utils/asset.util';
 import { ImmichFileResponse } from 'src/utils/file';
 import { mimeTypes } from 'src/utils/mime-types';
 import { isFacialRecognitionEnabled } from 'src/utils/misc';
+import { getPreferences } from 'src/utils/preferences';
 import { Point, transformPoints } from 'src/utils/transform';
 
 @Injectable()
@@ -527,7 +528,12 @@ export class PersonService extends BaseService {
 
     if (isCore && !personId) {
       this.logger.log(`Creating new person for face ${id}`);
-      const newPerson = await this.personRepository.create({ ownerId: face.asset.ownerId, faceAssetId: face.id });
+      const { people } = getPreferences(await this.userRepository.getMetadata(face.asset.ownerId));
+      const newPerson = await this.personRepository.create({
+        ownerId: face.asset.ownerId,
+        faceAssetId: face.id,
+        isHidden: people.hideNewByDefault,
+      });
       await this.jobRepository.queue({ name: JobName.PersonGenerateThumbnail, data: { id: newPerson.id } });
       personId = newPerson.id;
     }

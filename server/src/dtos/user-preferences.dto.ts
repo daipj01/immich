@@ -46,6 +46,7 @@ const PeopleUpdateSchema = z
     enabled: z.boolean().optional().describe('Whether people are enabled'),
     sidebarWeb: z.boolean().optional().describe('Whether people appear in web sidebar'),
     minimumFaces: z.int().min(1).optional().describe('People face threshold'),
+    hideNewByDefault: z.boolean().optional().describe('Whether newly detected people are hidden by default'),
   })
   .optional()
   .meta({ id: 'PeopleUpdate' });
@@ -148,6 +149,7 @@ const PeopleResponseSchema = z
     enabled: z.boolean().describe('Whether people are enabled'),
     sidebarWeb: z.boolean().describe('Whether people appear in web sidebar'),
     minimumFaces: z.int().min(1).optional().describe('People face threshold'),
+    hideNewByDefault: z.boolean().describe('Whether newly detected people are hidden by default'),
   })
   .meta({ id: 'PeopleResponse' });
 

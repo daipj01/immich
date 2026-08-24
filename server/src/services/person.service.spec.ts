@@ -1,7 +1,15 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BulkIdErrorReason } from 'src/dtos/asset-ids.response.dto';
 import { mapFaces, mapPerson } from 'src/dtos/person.dto';
-import { AssetFileType, CacheControl, JobName, JobStatus, SourceType, SystemMetadataKey } from 'src/enum';
+import {
+  AssetFileType,
+  CacheControl,
+  JobName,
+  JobStatus,
+  SourceType,
+  SystemMetadataKey,
+  UserMetadataKey,
+} from 'src/enum';
 import { FaceSearchResult } from 'src/repositories/search.repository';
 import { PersonService } from 'src/services/person.service';
 import { ImmichFileResponse } from 'src/utils/file';
@@ -1124,16 +1132,45 @@ describe(PersonService.name, () => {
       mocks.search.searchFaces.mockResolvedValue(faces);
       mocks.person.getFaceForFacialRecognitionJob.mockResolvedValue(getForFacialRecognitionJob(noPerson1, asset));
       mocks.person.create.mockResolvedValue(person);
+      mocks.user.getMetadata.mockResolvedValue([]);
 
       await sut.handleRecognizeFaces({ id: noPerson1.id });
 
       expect(mocks.person.create).toHaveBeenCalledWith({
         ownerId: asset.ownerId,
         faceAssetId: noPerson1.id,
+        isHidden: false,
       });
       expect(mocks.person.reassignFaces).toHaveBeenCalledWith({
         faceIds: [noPerson1.id],
         newPersonId: person.id,
+      });
+    });
+
+    it('should hide a newly created person when the owner opted in', async () => {
+      const asset = AssetFactory.create();
+      const [noPerson1, noPerson2] = [AssetFaceFactory.create({ assetId: asset.id }), AssetFaceFactory.create()];
+      const person = PersonFactory.create();
+
+      const faces = [
+        { ...noPerson1, distance: 0 },
+        { ...noPerson2, distance: 0.3 },
+      ] as FaceSearchResult[];
+
+      mocks.systemMetadata.get.mockResolvedValue({ machineLearning: { facialRecognition: { minFaces: 1 } } });
+      mocks.search.searchFaces.mockResolvedValue(faces);
+      mocks.person.getFaceForFacialRecognitionJob.mockResolvedValue(getForFacialRecognitionJob(noPerson1, asset));
+      mocks.person.create.mockResolvedValue(person);
+      mocks.user.getMetadata.mockResolvedValue([
+        { key: UserMetadataKey.Preferences, value: { people: { hideNewByDefault: true } } },
+      ]);
+
+      await sut.handleRecognizeFaces({ id: noPerson1.id });
+
+      expect(mocks.person.create).toHaveBeenCalledWith({
+        ownerId: asset.ownerId,
+        faceAssetId: noPerson1.id,
+        isHidden: true,
       });
     });
 
