@@ -9,7 +9,7 @@
   import { mediaCapabilitiesManager } from '$lib/managers/media-capabilities-manager.svelte';
   import { autoPlayVideo, lang, loopVideo as loopVideoPreference } from '$lib/stores/preferences.store';
   import { getAssetHlsSessionUrl, getAssetHlsUrl, getAssetMediaUrl, getAssetPlaybackUrl } from '$lib/utils';
-  import { getPlaybackSessionKey } from '$lib/utils/playback-session';
+  import { getPlaybackSessionKey, resetPlaybackSessionKey } from '$lib/utils/playback-session';
   import { AssetMediaSize, type AssetResponseDto } from '@immich/sdk';
   import { Icon, LoadingSpinner, shortcuts } from '@immich/ui';
   import {
@@ -77,18 +77,27 @@
 
   let videoPlayer: HTMLVideoElement | undefined = $state();
   let isLoading = $state(true);
-  // Set once a playback session token has been fetched, see playback-session.ts.
-  let sessionKey = $state<string>();
+  // Authenticates the media requests, see playback-session.ts. Undefined until
+  // resolved; `false` means it could not be obtained and the cookie is all we have.
+  let sessionKey = $state<string | false>();
   let assetFileUrl = $derived.by(() => {
     if (featureFlagsManager.value.realtimeTranscoding) {
       return getAssetHlsUrl(assetId);
     }
 
-    if (playOriginalVideo) {
-      return getAssetMediaUrl({ id: assetId, size: AssetMediaSize.Original, cacheKey, sessionKey });
+    // Progressive playback goes through the platform media stack, which will not
+    // send the auth cookie. Wait for the token rather than emit a URL that 401s.
+    if (sessionKey === undefined) {
+      return;
     }
 
-    return getAssetPlaybackUrl({ id: assetId, cacheKey, sessionKey });
+    const key = sessionKey || undefined;
+
+    if (playOriginalVideo) {
+      return getAssetMediaUrl({ id: assetId, size: AssetMediaSize.Original, cacheKey, sessionKey: key });
+    }
+
+    return getAssetPlaybackUrl({ id: assetId, cacheKey, sessionKey: key });
   });
   const aspectRatio = $derived(asset.width && asset.height ? `${asset.width} / ${asset.height}` : undefined);
   let showVideo = $state(false);
@@ -243,9 +252,32 @@
   });
 
   $effect(() => {
-    // a new asset starts over without a token, so the cookie is tried first
+    // fetch (or reuse) the token before the element requests any bytes; reruns
+    // when onVideoError clears it so a stale token gets replaced
     void assetId;
-    sessionKey = undefined;
+    void playOriginalVideo;
+
+    if (featureFlagsManager.value.realtimeTranscoding || sessionKey !== undefined) {
+      return;
+    }
+
+    let stale = false;
+    void getPlaybackSessionKey()
+      .then((token) => {
+        if (!stale) {
+          sessionKey = token;
+        }
+      })
+      .catch(() => {
+        // fall back to cookie auth, which works wherever the page fetches the video
+        if (!stale) {
+          sessionKey = false;
+        }
+      });
+
+    return () => {
+      stale = true;
+    };
   });
 
   $effect(() => {
@@ -301,21 +333,16 @@
     }
   };
 
-  // Browsers that fetch the video through a separate media process (Stagefright
-  // on Android, for instance) do not send the auth cookie, so the request is
-  // rejected and the element reports a load error. Retry once with a session
-  // token in the URL, which authenticates without relying on the cookie jar.
-  const onVideoError = async () => {
+  // A token that expired mid-session would leave the element stuck on a 401, so
+  // drop it and let the next attempt mint a fresh one.
+  const onVideoError = () => {
     if (sessionKey) {
-      isLoading = false;
+      resetPlaybackSessionKey();
+      sessionKey = undefined;
       return;
     }
 
-    try {
-      sessionKey = await getPlaybackSessionKey();
-    } catch {
-      isLoading = false;
-    }
+    isLoading = false;
   };
 
   const tryForceMutedPlay = async (video: HTMLVideoElement) => {
@@ -384,12 +411,14 @@
   >
     {#if castManager.isCasting}
       <div class="h-full place-content-center place-items-center">
-        <VideoRemoteViewer
-          poster={getAssetMediaUrl({ id: assetId, size: AssetMediaSize.Preview, cacheKey })}
-          {onVideoStarted}
-          {onVideoEnded}
-          {assetFileUrl}
-        />
+        {#if assetFileUrl}
+          <VideoRemoteViewer
+            poster={getAssetMediaUrl({ id: assetId, size: AssetMediaSize.Preview, cacheKey })}
+            {onVideoStarted}
+            {onVideoEnded}
+            {assetFileUrl}
+          />
+        {/if}
       </div>
     {:else}
       <!-- dir=ltr based on https://github.com/videojs/video.js/issues/949 -->
