@@ -562,6 +562,7 @@ export type UserPreferences = {
     enabled: boolean;
     sidebarWeb: boolean;
     minimumFaces: number;
+    hideNewByDefault: boolean;
   };
   ratings: {
     enabled: boolean;

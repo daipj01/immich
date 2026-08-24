@@ -682,6 +682,8 @@ export type MemoriesResponse = {
 export type PeopleResponse = {
     /** Whether people are enabled */
     enabled: boolean;
+    /** Whether newly detected people are hidden by default */
+    hideNewByDefault: boolean;
     /** People face threshold */
     minimumFaces?: number;
     /** Whether people appear in web sidebar */
@@ -766,6 +768,8 @@ export type MemoriesUpdate = {
 export type PeopleUpdate = {
     /** Whether people are enabled */
     enabled?: boolean;
+    /** Whether newly detected people are hidden by default */
+    hideNewByDefault?: boolean;
     /** People face threshold */
     minimumFaces?: number;
     /** Whether people appear in web sidebar */

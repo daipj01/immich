@@ -44,6 +44,7 @@ import { getDimensions } from 'src/utils/asset.util';
 import { ImmichFileResponse } from 'src/utils/file';
 import { mimeTypes } from 'src/utils/mime-types';
 import { batched, findOrFail, isFacialRecognitionEnabled } from 'src/utils/misc';
+import { getPreferences } from 'src/utils/preferences';
 import { Point, transformPoints } from 'src/utils/transform';
 
 const personKey = ({ ownerId, personGroupId }: PersonId) => `${ownerId}/${personGroupId}`;
@@ -544,7 +545,13 @@ export class PersonService extends BaseService {
       if (person) {
         this.logger.debug(`Face ${id} matched person ${person.personGroupId}`);
       } else {
-        await this.personRepository.create({ ownerId, faceAssetId: face.id, personGroupId });
+        const { people } = getPreferences(await this.userRepository.getMetadata(ownerId));
+        await this.personRepository.create({
+          ownerId,
+          faceAssetId: face.id,
+          personGroupId,
+          isHidden: people.hideNewByDefault,
+        });
         this.logger.log(`Created person for face ${id} in group ${personGroupId}`);
         await this.jobRepository.queue({
           name: JobName.PersonGenerateThumbnail,

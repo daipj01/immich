@@ -1201,6 +1201,8 @@
   "hide_all_people": "Hide all people",
   "hide_gallery": "Hide gallery",
   "hide_named_person": "Hide person {name}",
+  "hide_new_people": "Hide newly detected people",
+  "hide_new_people_description": "Newly recognized people are hidden by default. You can still find them in Show & hide people.",
   "hide_password": "Hide password",
   "hide_person": "Hide person",
   "hide_schema": "Hide schema",

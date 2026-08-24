@@ -1,7 +1,15 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BulkIdErrorReason } from 'src/dtos/asset-ids.response.dto';
 import { mapFaces, mapPerson } from 'src/dtos/person.dto';
-import { AssetFileType, CacheControl, JobName, JobStatus, SourceType, SystemMetadataKey } from 'src/enum';
+import {
+  AssetFileType,
+  CacheControl,
+  JobName,
+  JobStatus,
+  SourceType,
+  SystemMetadataKey,
+  UserMetadataKey,
+} from 'src/enum';
 import { PersonService } from 'src/services/person.service';
 import { ImmichFileResponse } from 'src/utils/file';
 import { AssetFaceFactory } from 'test/factories/asset-face.factory';
@@ -1180,6 +1188,7 @@ describe(PersonService.name, () => {
       mocks.person.getFaceForFacialRecognitionJob.mockResolvedValue(getForFacialRecognitionJob(noPerson1, asset));
       mocks.person.createGroup.mockResolvedValue(PersonGroupFactory.create({ id: person.personGroupId }));
       mocks.person.create.mockResolvedValue(person);
+      mocks.user.getMetadata.mockResolvedValue([]);
 
       await sut.handleRecognizeFaces({ id: noPerson1.id });
 
@@ -1188,10 +1197,37 @@ describe(PersonService.name, () => {
         ownerId: asset.ownerId,
         faceAssetId: noPerson1.id,
         personGroupId: person.personGroupId,
+        isHidden: false,
       });
       expect(mocks.person.reassignFaces).toHaveBeenCalledWith({
         faceIds: [noPerson1.id],
         newPersonGroupId: person.personGroupId,
+      });
+    });
+
+    it('should hide a newly created person when the owner opted in', async () => {
+      const asset = AssetFactory.create();
+      const [noPerson1, noPerson2] = [AssetFaceFactory.create({ assetId: asset.id }), AssetFaceFactory.create()];
+      const person = PersonFactory.create();
+
+      const faces = [getForFaceSearch(noPerson1, 0), getForFaceSearch(noPerson2, 0.3)];
+
+      mocks.systemMetadata.get.mockResolvedValue({ machineLearning: { facialRecognition: { minFaces: 1 } } });
+      mocks.search.searchFaces.mockResolvedValue(faces);
+      mocks.person.getFaceForFacialRecognitionJob.mockResolvedValue(getForFacialRecognitionJob(noPerson1, asset));
+      mocks.person.createGroup.mockResolvedValue(PersonGroupFactory.create({ id: person.personGroupId }));
+      mocks.person.create.mockResolvedValue(person);
+      mocks.user.getMetadata.mockResolvedValue([
+        { key: UserMetadataKey.Preferences, value: { people: { hideNewByDefault: true } } },
+      ]);
+
+      await sut.handleRecognizeFaces({ id: noPerson1.id });
+
+      expect(mocks.person.create).toHaveBeenCalledWith({
+        ownerId: asset.ownerId,
+        faceAssetId: noPerson1.id,
+        personGroupId: person.personGroupId,
+        isHidden: true,
       });
     });
 
@@ -1212,6 +1248,7 @@ describe(PersonService.name, () => {
       mocks.search.searchFaces.mockResolvedValue(faces);
       mocks.person.getFaceForFacialRecognitionJob.mockResolvedValue(getForFacialRecognitionJob(noPerson, asset));
       mocks.person.create.mockResolvedValue(person);
+      mocks.user.getMetadata.mockResolvedValue([]);
 
       await sut.handleRecognizeFaces({ id: noPerson.id });
 
@@ -1220,6 +1257,7 @@ describe(PersonService.name, () => {
         ownerId: asset.ownerId,
         faceAssetId: noPerson.id,
         personGroupId: otherOwnerFace.person!.personGroupId,
+        isHidden: false,
       });
       expect(mocks.person.reassignFaces).toHaveBeenCalledWith({
         faceIds: [noPerson.id],

@@ -23,6 +23,7 @@
   let peopleEnabled = $state(authManager.preferences.people?.enabled ?? false);
   let peopleSidebar = $state(authManager.preferences.people?.sidebarWeb ?? false);
   let peopleMinFaces = $state(authManager.preferences.people?.minimumFaces ?? serverConfigManager.value.minFaces);
+  let peopleHideNew = $state(authManager.preferences.people?.hideNewByDefault ?? false);
 
   // Ratings
   let ratingsEnabled = $state(authManager.preferences.ratings?.enabled ?? false);
@@ -48,7 +49,12 @@
           albums: { defaultAssetOrder },
           folders: { enabled: foldersEnabled, sidebarWeb: foldersSidebar },
           memories: { enabled: memoriesEnabled, duration: memoriesDuration },
-          people: { enabled: peopleEnabled, sidebarWeb: peopleSidebar, minimumFaces: peopleMinFaces },
+          people: {
+            enabled: peopleEnabled,
+            sidebarWeb: peopleSidebar,
+            minimumFaces: peopleMinFaces,
+            hideNewByDefault: peopleHideNew,
+          },
           ratings: { enabled: ratingsEnabled },
           sharedLinks: { enabled: sharedLinksEnabled, sidebarWeb: sharedLinkSidebar },
           tags: { enabled: tagsEnabled, sidebarWeb: tagsSidebar },
@@ -125,6 +131,9 @@
               </Field>
               <Field label={$t('minFaces')} description={$t('minFaces_description')}>
                 <NumberInput bind:value={peopleMinFaces} />
+              </Field>
+              <Field label={$t('hide_new_people')} description={$t('hide_new_people_description')}>
+                <Switch bind:checked={peopleHideNew} />
               </Field>
             {/if}
           </div>
