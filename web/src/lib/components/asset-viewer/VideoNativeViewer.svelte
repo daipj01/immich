@@ -9,6 +9,7 @@
   import { mediaCapabilitiesManager } from '$lib/managers/media-capabilities-manager.svelte';
   import { autoPlayVideo, lang, loopVideo as loopVideoPreference } from '$lib/stores/preferences.store';
   import { getAssetHlsSessionUrl, getAssetHlsUrl, getAssetMediaUrl, getAssetPlaybackUrl } from '$lib/utils';
+  import { getPlaybackSessionKey } from '$lib/utils/playback-session';
   import { AssetMediaSize, type AssetResponseDto } from '@immich/sdk';
   import { Icon, LoadingSpinner, shortcuts } from '@immich/ui';
   import {
@@ -76,16 +77,18 @@
 
   let videoPlayer: HTMLVideoElement | undefined = $state();
   let isLoading = $state(true);
+  // Set once a playback session token has been fetched, see playback-session.ts.
+  let sessionKey = $state<string>();
   let assetFileUrl = $derived.by(() => {
     if (featureFlagsManager.value.realtimeTranscoding) {
       return getAssetHlsUrl(assetId);
     }
 
     if (playOriginalVideo) {
-      return getAssetMediaUrl({ id: assetId, size: AssetMediaSize.Original, cacheKey });
+      return getAssetMediaUrl({ id: assetId, size: AssetMediaSize.Original, cacheKey, sessionKey });
     }
 
-    return getAssetPlaybackUrl({ id: assetId, cacheKey });
+    return getAssetPlaybackUrl({ id: assetId, cacheKey, sessionKey });
   });
   const aspectRatio = $derived(asset.width && asset.height ? `${asset.width} / ${asset.height}` : undefined);
   let showVideo = $state(false);
@@ -240,6 +243,12 @@
   });
 
   $effect(() => {
+    // a new asset starts over without a token, so the cookie is tried first
+    void assetId;
+    sessionKey = undefined;
+  });
+
+  $effect(() => {
     // reactive on `assetFileUrl` changes
     if (videoPlayer && assetFileUrl) {
       hasFocused = false;
@@ -288,6 +297,23 @@
 
       // auto-play failed
     } finally {
+      isLoading = false;
+    }
+  };
+
+  // Browsers that fetch the video through a separate media process (Stagefright
+  // on Android, for instance) do not send the auth cookie, so the request is
+  // rejected and the element reports a load error. Retry once with a session
+  // token in the URL, which authenticates without relying on the cookie jar.
+  const onVideoError = async () => {
+    if (sessionKey) {
+      isLoading = false;
+      return;
+    }
+
+    try {
+      sessionKey = await getPlaybackSessionKey();
+    } catch {
       isLoading = false;
     }
   };
@@ -418,6 +444,7 @@
               }
             }}
             onclose={onClose}
+            onerror={onVideoError}
             poster={getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Preview, cacheKey })}
           ></video>
         {/if}

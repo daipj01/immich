@@ -232,16 +232,16 @@ export const targetImageSize = (asset: AssetResponseDto, forceOriginal: boolean)
   return AssetMediaSize.Preview;
 };
 
-export const getAssetMediaUrl = (options: AssetUrlOptions) => {
-  const { id, size, cacheKey: c, edited = true } = options;
+export const getAssetMediaUrl = (options: AssetUrlOptions & { sessionKey?: string }) => {
+  const { id, size, cacheKey: c, edited = true, sessionKey } = options;
   const isOriginal = size === AssetMediaSize.Original;
   const path = isOriginal ? getAssetOriginalPath(id) : getAssetThumbnailPath(id);
-  return createUrl(path, { ...authManager.params, size: isOriginal ? undefined : size, c, edited });
+  return createUrl(path, { ...authManager.params, size: isOriginal ? undefined : size, c, edited, sessionKey });
 };
 
-export const getAssetPlaybackUrl = (options: AssetUrlOptions) => {
-  const { id, cacheKey: c } = options;
-  return createUrl(getAssetPlaybackPath(id), { ...authManager.params, c });
+export const getAssetPlaybackUrl = (options: AssetUrlOptions & { sessionKey?: string }) => {
+  const { id, cacheKey: c, sessionKey } = options;
+  return createUrl(getAssetPlaybackPath(id), { ...authManager.params, c, sessionKey });
 };
 
 export const getAssetHlsUrl = (id: string) => {
